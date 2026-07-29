@@ -63,9 +63,9 @@ def get_exact_ganji(date_obj):
     return day_part[0], day_part[1]
 
 # ---------------------------------------------------------
-# 2. 범용 명리 평가 엔진
+# 2. 범용 명리 평가 엔진 (시주 동착 옵션 지원)
 # ---------------------------------------------------------
-def evaluate_day_general(my_gan, my_zi, t_gan, t_zi):
+def evaluate_day_general(my_gan, my_zi, t_gan, t_zi, hour_gan=None, hour_zi=None):
     score = 0
     reasons = []
 
@@ -80,38 +80,44 @@ def evaluate_day_general(my_gan, my_zi, t_gan, t_zi):
     # 1. 천간 재성 (편재 vs 정재)
     if OVERCOMES[my_elem] == t_elem:
         if my_is_yang == t_is_yang:
-            score += 40
+            score += 35
             is_pyeonjae = True
             reasons.append("천간 편재(횡재수)")
         else:
-            score += 25
+            score += 20
             reasons.append("천간 정재(재물운)")
 
     # 2. 지지 재성
     if OVERCOMES[my_elem] == t_zi_elem:
-        score += 20
+        score += 15
         is_zi_jaeseong = True
         reasons.append("지지 재성(결실/재물창고)")
 
     # 3. 천을귀인
     if t_zi in CHEON_EUL.get(my_gan, []):
-        score += 25
+        score += 20
         is_cheoneul = True
         reasons.append("천을귀인(길신 작용)")
 
-    # 4. 동착/합 기운 (내 일지와 같은 지지이거나 합이 될 때)
+    # 4. 일지 동착
     if my_zi == t_zi:
         score += 15
         reasons.append("일지 동착(기운 증폭)")
 
-    # 5. 감점 요인 (일지 충)
+    # 5. [선택] 시주 완벽 동착 (시간/시지 입력 시)
+    if hour_zi and t_zi == hour_zi:
+        score += 50
+        reasons.append(f"★시주({hour_gan or ''}{hour_zi}) 완벽 동착 + 결합(최고 길일)")
+
+    # 6. 감점 요인 (일지 충)
     if ZI_CHUNG.get(my_zi) == t_zi:
         score -= 30
         reasons.append("일지 충(기운 산란)")
 
-    # ★ 범용 최고 길일 판정 (편재 + 귀인/재성 결합 또는 70점 이상)
+    # 최고 길일 멘트 정리
     if (is_pyeonjae and (is_cheoneul or is_zi_jaeseong)) or score >= 70:
-        reasons.insert(0, "★[최고 길일]")
+        if not any("★" in r for r in reasons):
+            reasons.insert(0, "★[최고 길일]")
 
     return score, reasons
 
@@ -123,8 +129,12 @@ def main():
     print("  [ 사주 맞춤형 복권/횡재수 길일 추출기 (60갑자 범용) ]")
     print("=" * 65)
 
-    my_gan = input("본인의 일간을 입력하세요 (예: 갑, 을, 병...): ").strip()
-    my_zi = input("본인의 일지를 입력하세요 (예: 자, 축, 인...): ").strip()
+    my_gan = input("본인의 일간을 입력하세요 (예: 갑): ").strip()
+    my_zi = input("본인의 일지를 입력하세요 (예: 오): ").strip()
+    
+    # 선택 입력: 시주 (엔터 치면 스킵)
+    hour_gan = input("본인의 시간을 입력하세요 (선택, 없으면 Enter): ").strip()
+    hour_zi = input("본인의 시지를 입력하세요 (선택, 없으면 Enter/예: 신): ").strip()
 
     if my_gan not in GAN_INFO or my_zi not in ZI_ELEMENT:
         print("\n[오류] 올바른 천간/지지를 입력해주세요.")
@@ -133,11 +143,10 @@ def main():
     today = datetime.date.today()
     results = []
 
-    # 향후 60일 탐색
     for i in range(60):
         target_date = today + datetime.timedelta(days=i)
         t_gan, t_zi = get_exact_ganji(target_date)
-        score, reasons = evaluate_day_general(my_gan, my_zi, t_gan, t_zi)
+        score, reasons = evaluate_day_general(my_gan, my_zi, t_gan, t_zi, hour_gan, hour_zi)
 
         if score > 0:
             results.append({
@@ -147,7 +156,6 @@ def main():
                 'reasons': reasons
             })
 
-    # 점수순 정렬
     results.sort(key=lambda x: x['score'], reverse=True)
 
     print("\n" + "-" * 70)
